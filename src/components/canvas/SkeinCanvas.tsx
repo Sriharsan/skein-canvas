@@ -8,6 +8,7 @@ import "@xyflow/react/dist/style.css";
 import { nodeTypes, type SkeinNodeData, type WorkflowRef } from "./nodes";
 import { edgeTypes } from "./thread-edge";
 import { runLLMNode } from "@/lib/ai.functions";
+import { runWorkflowChain } from "@/lib/workflows.functions";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 
@@ -21,8 +22,6 @@ type Props = {
   demo?: boolean;
   currentWorkflowId?: string;
   availableWorkflows?: WorkflowRef[];
-  /** Loads another workflow's snapshot for Run-Workflow nodes. */
-  loadWorkflow?: (id: string) => Promise<WorkflowSnapshot | null>;
   onRunSuccess?: () => void;
 };
 
@@ -63,12 +62,13 @@ export function SkeinCanvas(props: Props) {
 
 function SkeinCanvasInner({
   initial, readOnly, onDirtyChange, palette, demo,
-  currentWorkflowId, availableWorkflows, loadWorkflow, onRunSuccess,
+  currentWorkflowId, availableWorkflows, onRunSuccess,
 }: Props) {
   const snap = initial ?? DEFAULT_SNAP;
   const [nodes, setNodes] = useState<Node[]>(snap.nodes);
   const [edges, setEdges] = useState<Edge[]>(snap.edges);
   const runAI = useServerFn(runLLMNode);
+  const runSubflow = useServerFn(runWorkflowChain);
   const idCounter = useRef(1);
 
   useEffect(() => { onDirtyChange?.({ nodes, edges }); }, [nodes, edges, onDirtyChange]);
@@ -84,57 +84,6 @@ function SkeinCanvasInner({
         : e
     ));
   }, []);
-
-  // Run a subflow (recursive, headless) with cycle detection.
-  const runSubflow = useCallback(async (
-    workflowId: string, input: string, visited: Set<string>,
-  ): Promise<string> => {
-    if (visited.has(workflowId)) {
-      throw new Error("Cycle detected: this workflow already runs upstream.");
-    }
-    if (!loadWorkflow) throw new Error("Sub-workflows aren't available here.");
-    const wf = await loadWorkflow(workflowId);
-    if (!wf) throw new Error("That workflow could not be loaded.");
-    const nextVisited = new Set(visited); nextVisited.add(workflowId);
-
-    const outMap = new Map<string, string>();
-    const trigger = wf.nodes.find((n) => n.type === "trigger");
-    if (!trigger) throw new Error("Sub-workflow has no Trigger node.");
-    // Sub-workflow trigger receives upstream input instead of its own starter.
-    outMap.set(trigger.id, input || String((trigger.data as SkeinNodeData).starter ?? ""));
-
-    const queue: string[] = [trigger.id];
-    const seen = new Set<string>([trigger.id]);
-    let last = outMap.get(trigger.id) ?? "";
-    while (queue.length) {
-      const cur = queue.shift()!;
-      const outgoing = wf.edges.filter((e) => e.source === cur);
-      for (const e of outgoing) {
-        if (seen.has(e.target)) continue;
-        seen.add(e.target);
-        const tgt = wf.nodes.find((n) => n.id === e.target);
-        if (!tgt) continue;
-        const inputText = outMap.get(cur) ?? "";
-        let out = "";
-        const td = tgt.data as SkeinNodeData;
-        if (tgt.type === "llm") {
-          const promptTpl = String(td.prompt ?? "");
-          const finalPrompt = promptTpl.replaceAll("{{input}}", inputText) || inputText;
-          const res = await runAI({ data: { prompt: finalPrompt } });
-          out = res.text;
-        } else if (tgt.type === "subflow") {
-          if (!td.runWorkflowId) throw new Error("Nested Run Workflow node has no target selected.");
-          out = await runSubflow(td.runWorkflowId, inputText, nextVisited);
-        } else {
-          out = inputText;
-        }
-        outMap.set(e.target, out);
-        last = out;
-        queue.push(e.target);
-      }
-    }
-    return last;
-  }, [loadWorkflow, runAI]);
 
   const runFrom = useCallback(async (startId: string) => {
     if (readOnly) return;
@@ -172,18 +121,18 @@ function SkeinCanvasInner({
             } else {
               const promptTpl = String(td.prompt ?? "");
               const finalPrompt = promptTpl.replaceAll("{{input}}", inputText) || inputText;
-              const res = await runAI({ data: { prompt: finalPrompt } });
+              const res = await runAI({ data: { prompt: finalPrompt, workflowId: currentWorkflowId, nodeId: e.target } });
               out = res.text;
             }
           } else if (targetNode.type === "subflow") {
             const targetWfId = td.runWorkflowId;
             if (!targetWfId) throw new Error("Pick a workflow to run in this node.");
-            if (currentWorkflowId && targetWfId === currentWorkflowId) {
-              throw new Error("A workflow can't run itself.");
-            }
-            const visitedWorkflows = new Set<string>();
-            if (currentWorkflowId) visitedWorkflows.add(currentWorkflowId);
-            out = await runSubflow(targetWfId, inputText, visitedWorkflows);
+            // Cycle detection (including direct self-reference) is enforced
+            // server-side in runWorkflowChain, not just here.
+            const res = await runSubflow({
+              data: { workflowId: targetWfId, input: inputText, currentWorkflowId },
+            });
+            out = res.output;
           } else if (targetNode.type === "output") {
             out = inputText;
           } else {

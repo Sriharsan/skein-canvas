@@ -106,15 +106,6 @@ function BuildPage() {
     nav({ to: "/" });
   }
 
-  const loadWorkflow = useCallback(async (id: string): Promise<WorkflowSnapshot | null> => {
-    const row = await get({ data: { id } });
-    if (!row) return null;
-    return {
-      nodes: (row.nodes as unknown as WorkflowSnapshot["nodes"]) ?? [],
-      edges: (row.edges as unknown as WorkflowSnapshot["edges"]) ?? [],
-    };
-  }, [get]);
-
   const availableWorkflows = useMemo(
     () => (listQ.data ?? []).map((w) => ({ id: w.id, name: w.name })),
     [listQ.data],
@@ -232,7 +223,6 @@ function BuildPage() {
               palette
               currentWorkflowId={activeId ?? undefined}
               availableWorkflows={availableWorkflows}
-              loadWorkflow={loadWorkflow}
               onRunSuccess={onRunSuccess}
               onDirtyChange={(s) => { snapRef.current = s; }}
             />
