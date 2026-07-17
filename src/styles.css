@@ -1,0 +1,167 @@
+@import "tailwindcss" source(none);
+@source "../src";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+/* Skein — textile / thread design system. */
+
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-thread: var(--thread);
+  --color-moss: var(--moss);
+  --color-bone: var(--bone);
+  --color-bark: var(--bark);
+  --color-bark-2: var(--bark-2);
+  --color-wheat: var(--wheat);
+  --font-serif: "Fraunces", ui-serif, Georgia, serif;
+  --font-sans: "Archivo", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+}
+
+:root {
+  --radius: 0.375rem;
+  --bark: oklch(0.198 0.018 55);
+  --bark-2: oklch(0.245 0.021 60);
+  --bone: oklch(0.94 0.014 82);
+  --thread: oklch(0.615 0.135 42);
+  --moss: oklch(0.505 0.038 135);
+  --wheat: oklch(0.76 0.09 82);
+
+  --background: var(--bark);
+  --foreground: var(--bone);
+  --card: var(--bark-2);
+  --card-foreground: var(--bone);
+  --popover: var(--bark-2);
+  --popover-foreground: var(--bone);
+  --primary: var(--thread);
+  --primary-foreground: oklch(0.98 0.006 82);
+  --secondary: oklch(0.285 0.02 60);
+  --secondary-foreground: var(--bone);
+  --muted: oklch(0.27 0.017 60);
+  --muted-foreground: oklch(0.7 0.02 70);
+  --accent: var(--moss);
+  --accent-foreground: var(--bone);
+  --destructive: oklch(0.55 0.19 27);
+  --destructive-foreground: var(--bone);
+  --border: oklch(0.32 0.02 60);
+  --input: oklch(0.3 0.018 60);
+  --ring: var(--thread);
+}
+
+.dark { color-scheme: dark; }
+
+@layer base {
+  * { border-color: var(--color-border); }
+  html, body {
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+  h1, h2, h3, h4 { font-family: var(--font-serif); font-weight: 400; letter-spacing: -0.01em; }
+}
+
+@utility stitch {
+  background-color: var(--card);
+  border: 1px solid var(--border);
+  box-shadow:
+    inset 0 0 0 1px oklch(from var(--bone) l c h / 0.04),
+    0 1px 0 oklch(from black l c h / 0.4);
+  background-image: repeating-linear-gradient(
+    90deg,
+    transparent 0 4px,
+    oklch(from var(--bone) l c h / 0.06) 4px 6px
+  );
+  background-position: 0 3px;
+  background-size: 100% 1px;
+  background-repeat: no-repeat;
+}
+
+/* React Flow overrides */
+.react-flow { background-color: var(--bark); }
+.react-flow__background { color: oklch(from var(--bone) l c h / 0.08); }
+.react-flow__edge-path { stroke: var(--thread); stroke-width: 1.5; }
+.react-flow__edge.selected .react-flow__edge-path { stroke: var(--bone); }
+.react-flow__handle {
+  width: 10px; height: 10px;
+  background: var(--thread); border: 2px solid var(--bark);
+  border-radius: 2px;
+}
+
+/* Controls — bark palette, visible against dark bg */
+.react-flow__controls {
+  background: var(--bark-2) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 4px !important;
+  overflow: hidden;
+  box-shadow: 0 2px 8px oklch(from black l c h / 0.4);
+}
+.react-flow__controls-button {
+  background: var(--bark-2) !important;
+  color: var(--bone) !important;
+  border: none !important;
+  border-bottom: 1px solid var(--border) !important;
+  width: 32px !important;
+  height: 32px !important;
+  padding: 6px !important;
+}
+.react-flow__controls-button:last-child { border-bottom: none !important; }
+.react-flow__controls-button svg {
+  fill: var(--bone) !important;
+  max-width: 16px;
+  max-height: 16px;
+}
+.react-flow__controls-button:hover { background: var(--secondary) !important; }
+.react-flow__controls-button:hover svg { fill: var(--thread) !important; }
+
+.react-flow__attribution { background: transparent; color: var(--muted-foreground); }
+.react-flow__attribution a { color: var(--muted-foreground); }
+.react-flow__minimap {
+  background: var(--bark-2) !important;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.react-flow__minimap-mask { fill: oklch(from var(--bark) l c h / 0.6); }
+.react-flow__minimap-node { fill: var(--thread); stroke: none; }
+.react-flow__panel { color: var(--bone); }
+:focus-visible { outline: 2px solid var(--thread); outline-offset: 2px; }
+
+/* Sonner toasts — bark palette */
+[data-sonner-toaster][data-theme] {
+  --normal-bg: var(--bark-2);
+  --normal-text: var(--bone);
+  --normal-border: var(--border);
+  --success-bg: var(--bark-2);
+  --success-text: var(--bone);
+  --success-border: var(--moss);
+  --error-bg: var(--bark-2);
+  --error-text: var(--bone);
+  --error-border: var(--destructive);
+}
+[data-sonner-toast] { font-family: var(--font-sans) !important; }
+[data-sonner-toast] [data-icon] { color: var(--thread) !important; }
+[data-sonner-toast][data-type="success"] [data-icon] { color: var(--moss) !important; }
