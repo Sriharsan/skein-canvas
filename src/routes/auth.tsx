@@ -40,13 +40,18 @@ function AuthPage() {
         if (error) throw error;
         toast.success("Check your email for the sign-in link.");
       } else if (isSignup) {
-        const { error } = await supabase.auth.signUp({
+        const { data, error } = await supabase.auth.signUp({
           email, password,
           options: { emailRedirectTo: window.location.origin + "/build" },
         });
         if (error) throw error;
-        toast.success("Account created. You're in.");
-        nav({ to: "/build" });
+        if (data.session) {
+          toast.success("Account created. You're in.");
+          nav({ to: "/build" });
+        } else {
+          toast.success("Check your email to confirm your account, then sign in.");
+          setIsSignup(false);
+        }
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
