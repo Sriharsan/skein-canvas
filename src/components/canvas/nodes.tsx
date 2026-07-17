@@ -1,7 +1,7 @@
 import { memo, useState } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Play, Copy, Sparkles, ArrowDownToLine, Check, Loader2, Workflow } from "lucide-react";
+import { Play, Copy, Sparkles, ArrowDownToLine, Check, Loader2, Workflow, Mail, Webhook } from "lucide-react";
 import { toast } from "sonner";
 
 type Status = "idle" | "running" | "done" | "error";
@@ -16,10 +16,15 @@ export type SkeinNodeData = {
   status?: Status;
   error?: string;
   runWorkflowId?: string;
+  sendEmailTo?: string;
+  slackWebhookUrl?: string;
   availableWorkflows?: WorkflowRef[];
   currentWorkflowId?: string;
   onRun?: () => void;
   onChange?: (patch: Partial<SkeinNodeData>) => void;
+  /** Sends the node's current output using its saved sendEmailTo/slackWebhookUrl. Throws with a user-facing message on failure. */
+  onSendEmail?: () => Promise<void>;
+  onSendSlack?: () => Promise<void>;
 };
 
 const TAB_COLOR: Record<string, string> = {
@@ -120,6 +125,9 @@ LLMNode.displayName = "LLMNode";
 export const OutputNode = memo(({ data }: NodeProps) => {
   const d = data as SkeinNodeData;
   const [copied, setCopied] = useState(false);
+  const [emailBusy, setEmailBusy] = useState(false);
+  const [slackBusy, setSlackBusy] = useState(false);
+
   async function copy() {
     if (typeof navigator === "undefined" || !d.output) return;
     await navigator.clipboard.writeText(d.output);
@@ -127,6 +135,33 @@ export const OutputNode = memo(({ data }: NodeProps) => {
     toast("Copied to clipboard.");
     setTimeout(() => setCopied(false), 1500);
   }
+
+  async function sendEmail() {
+    if (!d.output || !d.sendEmailTo || emailBusy) return;
+    setEmailBusy(true);
+    try {
+      await d.onSendEmail?.();
+      toast.success(`Sent to ${d.sendEmailTo}.`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Couldn't send the email.");
+    } finally {
+      setEmailBusy(false);
+    }
+  }
+
+  async function sendSlack() {
+    if (!d.output || !d.slackWebhookUrl || slackBusy) return;
+    setSlackBusy(true);
+    try {
+      await d.onSendSlack?.();
+      toast.success("Posted to Slack.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Couldn't post to Slack.");
+    } finally {
+      setSlackBusy(false);
+    }
+  }
+
   return (
     <NodeShell type="output" title="Output" icon={<ArrowDownToLine className="h-3.5 w-3.5" />} data={d}>
       {d.output ? (
@@ -145,6 +180,50 @@ export const OutputNode = memo(({ data }: NodeProps) => {
       ) : (
         <p className="text-xs text-muted-foreground italic">Waiting for upstream…</p>
       )}
+
+      <div className="mt-3 pt-3 border-t border-border space-y-2">
+        <div>
+          <label className="text-[10px] uppercase tracking-wider text-muted-foreground">Email to (optional)</label>
+          <input
+            type="email"
+            value={d.sendEmailTo ?? ""}
+            onChange={(e) => d.onChange?.({ sendEmailTo: e.target.value })}
+            placeholder="client@example.com"
+            className="mt-1 w-full rounded-sm bg-input border border-border px-2 py-1.5 text-xs outline-none focus:border-primary"
+          />
+        </div>
+        {d.sendEmailTo && (
+          <button
+            onClick={sendEmail}
+            disabled={!d.output || emailBusy}
+            className="w-full rounded-sm border border-border py-1.5 text-xs hover:bg-secondary flex items-center justify-center gap-1.5 disabled:opacity-40"
+          >
+            {emailBusy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Mail className="h-3 w-3" />}
+            Send as email
+          </button>
+        )}
+        <div>
+          <label className="text-[10px] uppercase tracking-wider text-muted-foreground">Slack webhook (optional)</label>
+          <input
+            type="url"
+            value={d.slackWebhookUrl ?? ""}
+            onChange={(e) => d.onChange?.({ slackWebhookUrl: e.target.value })}
+            placeholder="https://hooks.slack.com/…"
+            className="mt-1 w-full rounded-sm bg-input border border-border px-2 py-1.5 text-xs outline-none focus:border-primary"
+          />
+        </div>
+        {d.slackWebhookUrl && (
+          <button
+            onClick={sendSlack}
+            disabled={!d.output || slackBusy}
+            className="w-full rounded-sm border border-border py-1.5 text-xs hover:bg-secondary flex items-center justify-center gap-1.5 disabled:opacity-40"
+          >
+            {slackBusy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Webhook className="h-3 w-3" />}
+            Post to Slack
+          </button>
+        )}
+      </div>
+
       <Handle type="target" position={Position.Left} />
     </NodeShell>
   );

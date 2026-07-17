@@ -6,7 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { listMyWorkflows, getWorkflow, createWorkflow, saveWorkflow, deleteWorkflow } from "@/lib/workflows.functions";
 import { TEMPLATES } from "@/lib/templates";
 import { toast } from "sonner";
-import { Save, Trash2, LogOut, Loader2, User, LayoutTemplate } from "lucide-react";
+import { Save, Trash2, LogOut, Loader2, User, LayoutTemplate, Share2 } from "lucide-react";
 import type { WorkflowSnapshot } from "@/components/canvas/SkeinCanvas";
 
 export const Route = createFileRoute("/_authenticated/build")({
@@ -106,6 +106,13 @@ function BuildPage() {
     nav({ to: "/" });
   }
 
+  async function copyShareLink() {
+    if (!activeId || typeof window === "undefined") return;
+    const url = `${window.location.origin}/f/${activeId}`;
+    await navigator.clipboard.writeText(url);
+    toast.success("Link copied. Anyone with it can trigger this workflow.");
+  }
+
   const availableWorkflows = useMemo(
     () => (listQ.data ?? []).map((w) => ({ id: w.id, name: w.name })),
     [listQ.data],
@@ -150,6 +157,14 @@ function BuildPage() {
               >
                 {saveM.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
                 Save
+              </button>
+              <button
+                onClick={copyShareLink}
+                className="rounded-sm border border-border p-1.5 text-xs hover:bg-secondary"
+                aria-label="Copy shareable link"
+                title="Copy shareable link"
+              >
+                <Share2 className="h-3 w-3" />
               </button>
               <button
                 onClick={() => { if (confirm("Delete this workflow?")) delM.mutate(activeId); }}

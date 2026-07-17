@@ -1,7 +1,8 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { callGemini } from "@/lib/ai.functions";
+import { walkWorkflow, type LoadWorkflow, type OnOutputNode, type WorkflowRow } from "@/lib/workflow-engine";
+import { runOutputSideEffects } from "@/lib/notify.functions";
 
 const NodesEdges = z.object({
   name: z.string().min(1).max(120),
@@ -71,9 +72,6 @@ export const deleteWorkflow = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
-type SnapshotNode = { id: string; type?: string; data?: Record<string, unknown> };
-type SnapshotEdge = { source: string; target: string };
-
 /**
  * Executes a saved workflow (used by Run Workflow / subflow nodes) entirely
  * server-side, including any nested Run Workflow nodes it contains.
@@ -100,65 +98,37 @@ export const runWorkflowChain = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const rateLimitKey = `user:${context.userId}`;
+    const rateLimitKey = `ai:user:${context.userId}`;
+    const notifyRateLimitKey = `notify:user:${context.userId}`;
 
-    async function walk(workflowId: string, inputText: string, visited: Set<string>): Promise<string> {
-      if (visited.has(workflowId)) {
-        throw new Error("Cycle detected: this workflow already runs upstream.");
-      }
-      const nextVisited = new Set(visited);
-      nextVisited.add(workflowId);
-
+    const loadWorkflow: LoadWorkflow = async (workflowId) => {
       const { data: wf, error } = await context.supabase
         .from("workflows")
         .select("nodes,edges")
         .eq("id", workflowId)
         .maybeSingle();
       if (error) throw new Error(error.message);
-      if (!wf) throw new Error("That workflow could not be loaded.");
+      return wf as unknown as WorkflowRow | null;
+    };
 
-      const nodes = (wf.nodes as unknown as SnapshotNode[]) ?? [];
-      const edges = (wf.edges as unknown as SnapshotEdge[]) ?? [];
-      const trigger = nodes.find((n) => n.type === "trigger");
-      if (!trigger) throw new Error("Sub-workflow has no Trigger node.");
-
-      const outMap = new Map<string, string>();
-      outMap.set(trigger.id, inputText || String(trigger.data?.starter ?? ""));
-
-      const queue: string[] = [trigger.id];
-      const seen = new Set<string>([trigger.id]);
-      let last = outMap.get(trigger.id) ?? "";
-      while (queue.length) {
-        const cur = queue.shift()!;
-        for (const e of edges.filter((edge) => edge.source === cur)) {
-          if (seen.has(e.target)) continue;
-          seen.add(e.target);
-          const tgt = nodes.find((n) => n.id === e.target);
-          if (!tgt) continue;
-          const inText = outMap.get(cur) ?? "";
-          let out: string;
-          if (tgt.type === "llm") {
-            const promptTpl = String(tgt.data?.prompt ?? "");
-            const finalPrompt = promptTpl.replaceAll("{{input}}", inText) || inText;
-            out = await callGemini(finalPrompt, rateLimitKey, supabaseAdmin);
-          } else if (tgt.type === "subflow") {
-            const nestedId = tgt.data?.runWorkflowId as string | undefined;
-            if (!nestedId) throw new Error("Nested Run Workflow node has no target selected.");
-            out = await walk(nestedId, inText, nextVisited);
-          } else {
-            out = inText;
-          }
-          outMap.set(e.target, out);
-          last = out;
-          queue.push(e.target);
-        }
-      }
-      return last;
-    }
+    const onOutputNode: OnOutputNode = async (node, outputText) => {
+      await runOutputSideEffects(supabaseAdmin, notifyRateLimitKey, node, outputText, {
+        workflowId: data.workflowId,
+        nodeId: node.id,
+      });
+    };
 
     const visited = new Set<string>(data.currentWorkflowId ? [data.currentWorkflowId] : []);
     try {
-      const output = await walk(data.workflowId, data.input, visited);
+      const output = await walkWorkflow({
+        workflowId: data.workflowId,
+        input: data.input,
+        visited,
+        loadWorkflow,
+        rateLimitKey,
+        supabaseAdmin,
+        onOutputNode,
+      });
       return { output };
     } catch (err) {
       console.error("[workflows.functions] subflow execution failed", {

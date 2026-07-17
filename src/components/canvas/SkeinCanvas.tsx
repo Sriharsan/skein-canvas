@@ -9,6 +9,7 @@ import { nodeTypes, type SkeinNodeData, type WorkflowRef } from "./nodes";
 import { edgeTypes } from "./thread-edge";
 import { runLLMNode } from "@/lib/ai.functions";
 import { runWorkflowChain } from "@/lib/workflows.functions";
+import { notifyOutput } from "@/lib/notify.functions";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 
@@ -69,6 +70,7 @@ function SkeinCanvasInner({
   const [edges, setEdges] = useState<Edge[]>(snap.edges);
   const runAI = useServerFn(runLLMNode);
   const runSubflow = useServerFn(runWorkflowChain);
+  const notify = useServerFn(notifyOutput);
   const idCounter = useRef(1);
 
   useEffect(() => { onDirtyChange?.({ nodes, edges }); }, [nodes, edges, onDirtyChange]);
@@ -135,6 +137,28 @@ function SkeinCanvasInner({
             out = res.output;
           } else if (targetNode.type === "output") {
             out = inputText;
+            if (td.sendEmailTo || td.slackWebhookUrl) {
+              notify({
+                data: {
+                  workflowId: currentWorkflowId,
+                  nodeId: e.target,
+                  output: out,
+                  sendEmailTo: td.sendEmailTo,
+                  slackWebhookUrl: td.slackWebhookUrl,
+                },
+              })
+                .then((res) => {
+                  if (res.email) {
+                    if (res.email.ok) toast.success(`Sent to ${td.sendEmailTo}.`);
+                    else toast.error(res.email.error || "Couldn't send the email.");
+                  }
+                  if (res.slack) {
+                    if (res.slack.ok) toast.success("Posted to Slack.");
+                    else toast.error(res.slack.error || "Couldn't post to Slack.");
+                  }
+                })
+                .catch((err) => toast.error(err instanceof Error ? err.message : "Couldn't send the notification."));
+            }
           } else {
             out = inputText;
           }
@@ -164,8 +188,22 @@ function SkeinCanvasInner({
       currentWorkflowId,
       onChange: (patch: Partial<SkeinNodeData>) => patchNode(n.id, patch),
       onRun: () => runFrom(n.id),
+      onSendEmail: async () => {
+        const nd = n.data as SkeinNodeData;
+        const res = await notify({
+          data: { workflowId: currentWorkflowId, nodeId: n.id, output: nd.output ?? "", sendEmailTo: nd.sendEmailTo },
+        });
+        if (!res.email?.ok) throw new Error(res.email?.error || "Couldn't send the email.");
+      },
+      onSendSlack: async () => {
+        const nd = n.data as SkeinNodeData;
+        const res = await notify({
+          data: { workflowId: currentWorkflowId, nodeId: n.id, output: nd.output ?? "", slackWebhookUrl: nd.slackWebhookUrl },
+        });
+        if (!res.slack?.ok) throw new Error(res.slack?.error || "Couldn't post to Slack.");
+      },
     },
-  })), [nodes, patchNode, runFrom, availableWorkflows, currentWorkflowId]);
+  })), [nodes, patchNode, runFrom, availableWorkflows, currentWorkflowId, notify]);
 
   const onNodesChange = useCallback((changes: NodeChange[]) => {
     if (readOnly) return;

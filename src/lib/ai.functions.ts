@@ -1,6 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { getRequest } from "@tanstack/react-start/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 const RunInput = z.object({
@@ -24,24 +23,36 @@ async function tryGetUserId(token: string): Promise<string | null> {
 
 /** Per-user key when authenticated, per-IP key otherwise (covers direct calls to this endpoint from the public /demo route). */
 async function rateLimitKeyForRequest(): Promise<string> {
+  const { getRequest } = await import("@tanstack/react-start/server");
   const request = getRequest();
   const authHeader = request?.headers.get("authorization");
   if (authHeader?.startsWith("Bearer ")) {
     const token = authHeader.slice(7);
     if (token.split(".").length === 3) {
       const userId = await tryGetUserId(token);
-      if (userId) return `user:${userId}`;
+      if (userId) return `ai:user:${userId}`;
     }
   }
   const ip =
     request?.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
     request?.headers.get("x-real-ip") ||
     "unknown";
-  return `ip:${ip}`;
+  return `ai:ip:${ip}`;
+}
+
+/** Extracts the caller's IP from request headers, for endpoints that are never authenticated. */
+export async function requestIp(): Promise<string> {
+  const { getRequest } = await import("@tanstack/react-start/server");
+  const request = getRequest();
+  return (
+    request?.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+    request?.headers.get("x-real-ip") ||
+    "unknown"
+  );
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function checkRateLimit(supabaseAdmin: SupabaseClient<any>, key: string, limit = RATE_LIMIT, windowSeconds = RATE_WINDOW_SECONDS) {
+export async function checkRateLimit(supabaseAdmin: SupabaseClient<any>, key: string, limit = RATE_LIMIT, windowSeconds = RATE_WINDOW_SECONDS) {
   const { data, error } = await supabaseAdmin.rpc("check_rate_limit", {
     p_key: key,
     p_window_seconds: windowSeconds,

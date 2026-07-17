@@ -34,13 +34,21 @@ simulated AI reply, or sign up for your own free workspace.
 - **Workflow composition** — a Run Workflow node can call another saved
   workflow, passing its output through as input. Cycle detection (direct and
   indirect self-reference) is enforced server-side, not just in the UI.
-- **Per-account isolation** — every workflow is scoped to its owner via
-  Postgres row-level security.
+- **Public intake forms** — every saved workflow gets a shareable, no-login
+  URL (`/f/{workflow-id}`) that runs the full pipeline server-side from a
+  single text field and shows the visitor a plain confirmation — never the
+  AI output or any of your other data. Rate limited per IP, separately from
+  the authenticated usage limit.
+- **Email + Slack delivery** — the Output node can send its result to an
+  email address (via Resend) or post it to a Slack channel (via an Incoming
+  Webhook you paste in once), on every run from the canvas or a public form.
+- **Per-account isolation** — every workflow, and every email/Slack setting
+  on it, is scoped to its owner via Postgres row-level security.
 
 ## Tech stack
 
 React 19 · TanStack Start · Tailwind CSS 4 · React Flow (`@xyflow/react`) ·
-Supabase (Postgres, Auth, RLS) · Gemini API
+Supabase (Postgres, Auth, RLS) · Gemini API · Resend
 
 ## Run locally
 
@@ -66,6 +74,10 @@ Supabase (Postgres, Auth, RLS) · Gemini API
      exposed to the browser.
    - `GEMINI_API_KEY` — a Gemini API key from
      [Google AI Studio](https://aistudio.google.com/apikey). Server-only.
+   - `RESEND_API_KEY` — optional, a [Resend](https://resend.com/api-keys) API
+     key. Only needed for the Output node's "Send as email" action; without
+     it, everything else still works and email sends just fail with a clear
+     error.
 
 3. Apply the database schema (creates `profiles`, `workflows`, and
    `rate_limits`, with RLS enabled on every table):

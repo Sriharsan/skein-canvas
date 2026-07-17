@@ -15,6 +15,7 @@ import { Route as DemoRouteImport } from './routes/demo'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as FWorkflowIdRouteImport } from './routes/f/$workflowId'
 import { Route as AuthenticatedBuildRouteImport } from './routes/_authenticated/build'
 import { Route as AuthenticatedAccountRouteImport } from './routes/_authenticated/account'
 
@@ -47,6 +48,11 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const FWorkflowIdRoute = FWorkflowIdRouteImport.update({
+  id: '/f/$workflowId',
+  path: '/f/$workflowId',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthenticatedBuildRoute = AuthenticatedBuildRouteImport.update({
   id: '/build',
   path: '/build',
@@ -66,6 +72,7 @@ export interface FileRoutesByFullPath {
   '/pricing': typeof PricingRoute
   '/account': typeof AuthenticatedAccountRoute
   '/build': typeof AuthenticatedBuildRoute
+  '/f/$workflowId': typeof FWorkflowIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -75,6 +82,7 @@ export interface FileRoutesByTo {
   '/pricing': typeof PricingRoute
   '/account': typeof AuthenticatedAccountRoute
   '/build': typeof AuthenticatedBuildRoute
+  '/f/$workflowId': typeof FWorkflowIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -86,13 +94,29 @@ export interface FileRoutesById {
   '/pricing': typeof PricingRoute
   '/_authenticated/account': typeof AuthenticatedAccountRoute
   '/_authenticated/build': typeof AuthenticatedBuildRoute
+  '/f/$workflowId': typeof FWorkflowIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
-    '/' | '/auth' | '/demo' | '/faq' | '/pricing' | '/account' | '/build'
+    | '/'
+    | '/auth'
+    | '/demo'
+    | '/faq'
+    | '/pricing'
+    | '/account'
+    | '/build'
+    | '/f/$workflowId'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/auth' | '/demo' | '/faq' | '/pricing' | '/account' | '/build'
+  to:
+    | '/'
+    | '/auth'
+    | '/demo'
+    | '/faq'
+    | '/pricing'
+    | '/account'
+    | '/build'
+    | '/f/$workflowId'
   id:
     | '__root__'
     | '/'
@@ -103,6 +127,7 @@ export interface FileRouteTypes {
     | '/pricing'
     | '/_authenticated/account'
     | '/_authenticated/build'
+    | '/f/$workflowId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -112,6 +137,7 @@ export interface RootRouteChildren {
   DemoRoute: typeof DemoRoute
   FaqRoute: typeof FaqRoute
   PricingRoute: typeof PricingRoute
+  FWorkflowIdRoute: typeof FWorkflowIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -158,6 +184,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/f/$workflowId': {
+      id: '/f/$workflowId'
+      path: '/f/$workflowId'
+      fullPath: '/f/$workflowId'
+      preLoaderRoute: typeof FWorkflowIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_authenticated/build': {
       id: '/_authenticated/build'
       path: '/build'
@@ -195,6 +228,7 @@ const rootRouteChildren: RootRouteChildren = {
   DemoRoute: DemoRoute,
   FaqRoute: FaqRoute,
   PricingRoute: PricingRoute,
+  FWorkflowIdRoute: FWorkflowIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
